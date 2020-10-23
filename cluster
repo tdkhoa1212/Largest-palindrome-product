@@ -28,11 +28,10 @@ dataset = {'k':[[1,2],[2,3],[3,1]], 'r':[[6,5],[7,7],[8,6]]}
 new_features = [[5,7], [3, 3]]
 #----------------------------------------------------------
 
-sub_results = []
-results = {}
-for sub_new_features in new_features:
-    sub_results.append(k_nearest_neighbors(dataset, sub_new_features))
 
+results = {}
+sub_results = [k_nearest_neighbors(dataset, sub_new_features) for sub_new_features in new_features]
+    
 for i in range(len(sub_results)):
     results[sub_results[i]] = new_features[i] 
 print(results)
