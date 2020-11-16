@@ -1,0 +1,430 @@
+# 1 predict future---------------------------------------------------------------------------
+
+import quandl, math
+import numpy as np
+import pandas as pd
+from sklearn import preprocessing, svm
+from sklearn.model_selection import cross_validate, train_test_split
+from sklearn.linear_model import LinearRegression
+import matplotlib.pyplot as plt
+from matplotlib import style
+import datetime
+import pickle
+
+style.use('ggplot')
+
+df = quandl.get("WIKI/GOOGL")
+df = df[['Adj. Open',  'Adj. High',  'Adj. Low',  'Adj. Close', 'Adj. Volume']]
+df['HL_PCT'] = (df['Adj. High'] - df['Adj. Low']) / df['Adj. Close'] * 100.0
+df['PCT_change'] = (df['Adj. Close'] - df['Adj. Open']) / df['Adj. Open'] * 100.0
+
+df = df[['Adj. Close', 'HL_PCT', 'PCT_change', 'Adj. Volume']]
+forecast_col = 'Adj. Close'
+df.fillna(value=-99999, inplace=True)
+forecast_out = int(math.ceil(0.01 * len(df)))
+df['label'] = df[forecast_col].shift(-forecast_out)
+
+X = np.array(df.drop(['label'], 1))
+X = preprocessing.scale(X)
+X_lately = X[-forecast_out:]
+X = X[:-forecast_out]
+
+df.dropna(inplace=True)
+
+y = np.array(df['label'])
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+clf = LinearRegression(n_jobs=-1)
+clf.fit(X_train, y_train)
+confidence = clf.score(X_test, y_test)
+
+forecast_set = clf.predict(X_lately)
+df['Forecast'] = np.nan
+print(forecast_set)
+
+last_date = df.iloc[-1].name
+last_unix = last_date.timestamp()
+one_day = 86400
+next_unix = last_unix + one_day
+
+for i in forecast_set:
+    next_date = datetime.datetime.fromtimestamp(next_unix)
+    next_unix += 86400
+    df.loc[next_date] = [np.nan for _ in range(len(df.columns)-1)]+[i]
+    print(df.loc[next_date])
+
+df['Adj. Close'].plot()
+df['Forecast'].plot()
+plt.legend(loc=4)
+plt.xlabel('Date')
+plt.ylabel('Price')
+plt.show()
+
+
+
+
+#2 show predict-------------------------------------------------------------------------------------
+
+from statistics import mean
+import numpy as np
+import random
+import matplotlib.pyplot as plt
+from matplotlib import style
+style.use('ggplot')
+
+
+def create_dataset(hm,variance,step=2,correlation=False):
+    val = 1
+    ys = []
+    for i in range(hm):
+        y = val + random.randrange(-variance,variance)
+        ys.append(y)
+        if correlation and correlation == 'pos':
+            val+=step
+        elif correlation and correlation == 'neg':
+            val-=step
+
+    xs = [i for i in range(len(ys))]
+    
+    return np.array(xs, dtype=np.float64),np.array(ys,dtype=np.float64)
+
+def best_fit_slope_and_intercept(xs,ys):
+    m = (((mean(xs)*mean(ys)) - mean(xs*ys)) /
+         ((mean(xs)*mean(xs)) - mean(xs*xs)))
+    
+    b = mean(ys) - m*mean(xs)
+
+    return m, b
+
+
+def coefficient_of_determination(ys_orig,ys_line):
+    y_mean_line = [mean(ys_orig) for y in ys_orig]
+
+    squared_error_regr = sum((ys_line - ys_orig) * (ys_line - ys_orig))
+    squared_error_y_mean = sum((y_mean_line - ys_orig) * (y_mean_line - ys_orig))
+
+    r_squared = 1 - (squared_error_regr/squared_error_y_mean)
+
+    return r_squared
+
+
+xs, ys = create_dataset(40,40,2,correlation='pos')
+m, b = best_fit_slope_and_intercept(xs,ys)
+regression_line = [(m*x)+b for x in xs]
+r_squared = coefficient_of_determination(ys,regression_line)
+print(r_squared)
+
+plt.scatter(xs,ys,color='#003F72', label = 'data')
+plt.plot(xs, regression_line, label = 'regression line')
+plt.legend(loc=4)
+plt.show()
+
+
+
+
+# predict and accuracy
+import numpy as np
+import pandas as pd
+from sklearn import  preprocessing, neighbors
+from sklearn.model_selection import cross_validate, train_test_split
+
+
+df = pd.read_csv('data')
+df.replace('?', -99999, inplace=True)
+df.drop(['id'], 1, inplace=True)
+
+x = np.array(df.drop(['class'], 1))
+y = np.array(df['class'])
+
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2)
+
+clf = neighbors.KNeighborsClassifier()
+clf.fit(x_train, y_train)
+accuracy = clf.score(x_test, y_test)
+
+print(accuracy)
+
+# example_measures = np.array([[4,2,1,1,1,2,3,2,1],[4,2,1,1,1,2,3,2,1]])
+# example_measures = example_measures.reshape(len(example_measures), -1)
+# print(example_measures)
+# prediction = clf.predict(example_measures)
+# print(prediction)
+
+
+
+
+
+# 3 cluster many points (in two directions)-----------------------------------------------------------------------------
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import style
+import warnings
+from math import sqrt
+from collections import Counter
+style.use('fivethirtyeight')
+
+def k_nearest_neighbors(data, predict, k=3):
+    if len(data) >= k:
+        warnings.warn('K is set to a value less than total voting groups!')
+        
+    distances = []
+    for group in data:
+        for features in data[group]:
+            euclidean_distance = np.linalg.norm(np.array(features)-np.array(predict))
+            distances.append([euclidean_distance,group])
+
+    
+    votes = [i[1] for i in sorted(distances)[:k]]
+    vote_result = Counter(votes).most_common(2)[0][0]
+    
+    return vote_result
+
+dataset = {'k':[[1,2],[2,3],[3,1]], 'r':[[6,5],[7,7],[8,6]]}
+
+# two or many point----------------------------------------
+new_features = [[5,7], [3, 3]]
+#----------------------------------------------------------
+
+
+results = {}
+sub_results = [k_nearest_neighbors(dataset, sub_new_features) for sub_new_features in new_features]
+    
+for i in range(len(sub_results)):
+    results[sub_results[i]] = new_features[i] 
+print(results)
+
+[[plt.scatter(ii[0],ii[1],s=100,color=i) for ii in dataset[i]] for i in dataset]
+[[plt.scatter(features, features, s=50, color = data) for features in results[data]] for data in results] 
+
+plt.show()
+
+
+
+
+# 5 cluster many points (in many directions)-----------------------------------------------------------------------------
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib import style
+import warnings
+from math import sqrt
+from collections import Counter
+import random
+style.use('fivethirtyeight')
+
+def k_nearest_neighbors(data, predict, k=3):
+    if len(data) >= k:
+        warnings.warn('K is set to a value less than total voting groups!')
+        
+    distances = []
+    for group in data:
+        for features in data[group]:
+            euclidean_distance = np.linalg.norm(np.array(features)-np.array(predict))
+            distances.append([euclidean_distance,group])
+
+    
+    votes = [i[1] for i in sorted(distances)[:k]]
+    vote_result = Counter(votes).most_common(1)[0][0]
+    
+    return vote_result
+
+accuracy = []
+for i in range(25):
+    df = pd.read_csv('data')
+    df.replace('?', -99999, inplace=True)
+    df.drop(['id'], 1, inplace=True)
+    full_data = df.astype(float).values.tolist()
+
+
+    random.shuffle(full_data)
+    test_size = 0.2
+    train_set = {2:[], 4:[]}
+    test_set = {2:[], 4:[]}
+
+    train_data = full_data[ :-int(test_size*len(full_data)) ]
+    test_data = full_data[ -int(test_size*len(full_data)): ]
+
+    for i in train_data:
+        train_set[i[-1]].append(i[:-1]) # append in each class (because i[-1]) look at data
+
+    for i in test_data:
+        test_set[i[-1]].append(i[:-1])
+
+
+    correct = 0
+    total = 0
+
+    for group in test_set:
+        for data in test_set[group]:
+            vote = k_nearest_neighbors(train_set, data, 5)
+            if group == vote:
+                correct += 1
+            total += 1
+    accuracy.append(correct/total)
+print('Accuracy: ', sum(accuracy)/len(accuracy))
+
+
+
+# 6 SVM---------------------------------------------------------------------------------------------------------------
+import matplotlib.pyplot as plt
+from matplotlib import style
+import numpy as np
+style.use('ggplot')
+
+class Support_Vector_Machine:
+    def __init__(self, visualization=True):
+        self.visualization = visualization
+        self.colors = {1:'r',-1:'b'}
+        if self.visualization:
+            self.fig = plt.figure()
+            self.ax = self.fig.add_subplot(1,1,1)
+    # train
+    def fit(self, data):
+        self.data = data
+        # { ||w||: [w,b] }
+        opt_dict = {}
+
+        transforms = [[1,1],
+                      [-1,1],
+                      [-1,-1],
+                      [1,-1]]
+
+        all_data = []
+        for yi in self.data:
+            for featureset in self.data[yi]:
+                for feature in featureset:
+                    all_data.append(feature)
+
+        self.max_feature_value = max(all_data)
+        self.min_feature_value = min(all_data)
+        all_data = None
+
+        # support vectors yi(xi.w+b) = 1
+        
+
+        step_sizes = [self.max_feature_value * 0.1,
+                      self.max_feature_value * 0.01,
+                      # point of expense:
+                      self.max_feature_value * 0.001,
+                      ]
+
+        
+        
+        # extremely expensive
+        b_range_multiple = 2
+        # we dont need to take as small of steps
+        # with b as we do w
+        b_multiple = 5
+        latest_optimum = self.max_feature_value*10
+        
+        for step in step_sizes:
+            w = np.array([latest_optimum,latest_optimum])
+            # we can do this because convex
+            optimized = False
+            while not optimized:
+                for b in np.arange(-1*(self.max_feature_value*b_range_multiple),
+                                   self.max_feature_value*b_range_multiple,
+                                   step*b_multiple):
+                    for transformation in transforms:
+                        w_t = w*transformation
+                        found_option = True
+                        # weakest link in the SVM fundamentally
+                        # SMO attempts to fix this a bit
+                        # yi(xi.w+b) >= 1
+                        # 
+                        # #### add a break here later..
+                        for i in self.data:
+                            for xi in self.data[i]:
+                                yi=i
+                                if not yi*(np.dot(w_t,xi)+b) >= 1:
+                                    found_option = False
+                                    #print(xi,':',yi*(np.dot(w_t,xi)+b))
+                                    
+                        if found_option:
+                            opt_dict[np.linalg.norm(w_t)] = [w_t,b]
+
+                if w[0] < 0:
+                    optimized = True
+                    print('Optimized a step.')
+                else:
+                    w = w - step
+
+            norms = sorted([n for n in opt_dict])
+            #||w|| : [w,b]
+            opt_choice = opt_dict[norms[0]]
+            self.w = opt_choice[0]
+            self.b = opt_choice[1]
+            latest_optimum = opt_choice[0][0]+step*2
+            
+        for i in self.data:
+            for xi in self.data[i]:
+                yi=i
+                print(xi,':',yi*(np.dot(self.w,xi)+self.b))            
+
+    def predict(self,features):
+        # sign( x.w+b )
+        classification = np.sign(np.dot(np.array(features),self.w)+self.b)
+        if classification !=0 and self.visualization:
+            self.ax.scatter(features[0], features[1], s=200, marker='*', c=self.colors[classification])
+        return classification
+
+    def visualize(self):
+        [[self.ax.scatter(x[0],x[1],s=100,color=self.colors[i]) for x in data_dict[i]] for i in data_dict]
+
+        # hyperplane = x.w+b
+        # v = x.w+b
+        # psv = 1
+        # nsv = -1
+        # dec = 0
+        def hyperplane(x,w,b,v):
+            return (-w[0]*x-b+v) / w[1]
+
+        datarange = (self.min_feature_value*0.9,self.max_feature_value*1.1)
+        hyp_x_min = datarange[0]
+        hyp_x_max = datarange[1]
+
+        # (w.x+b) = 1
+        # positive support vector hyperplane
+        psv1 = hyperplane(hyp_x_min, self.w, self.b, 1)
+        psv2 = hyperplane(hyp_x_max, self.w, self.b, 1)
+        self.ax.plot([hyp_x_min,hyp_x_max],[psv1,psv2], 'k')
+
+        # (w.x+b) = -1
+        # negative support vector hyperplane
+        nsv1 = hyperplane(hyp_x_min, self.w, self.b, -1)
+        nsv2 = hyperplane(hyp_x_max, self.w, self.b, -1)
+        self.ax.plot([hyp_x_min,hyp_x_max],[nsv1,nsv2], 'k')
+
+        # (w.x+b) = 0
+        # positive support vector hyperplane
+        db1 = hyperplane(hyp_x_min, self.w, self.b, 0)
+        db2 = hyperplane(hyp_x_max, self.w, self.b, 0)
+        self.ax.plot([hyp_x_min,hyp_x_max],[db1,db2], 'y--')
+
+        plt.show()
+        
+data_dict = {-1:np.array([[1,7],
+                          [2,8],
+                          [3,8],]),
+             
+             1:np.array([[5,1],
+                         [6,-1],
+                         [7,3],])}
+
+svm = Support_Vector_Machine()
+svm.fit(data=data_dict)
+
+predict_us = [[0,10],
+              [1,3],
+              [3,4],
+              [3,5],
+              [5,5],
+              [5,6],
+              [6,-5],
+              [5,8]]
+
+for p in predict_us:
+    svm.predict(p)
+
+svm.visualize()
